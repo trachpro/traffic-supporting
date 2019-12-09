@@ -1,0 +1,7 @@
+VIDEO_50.avi
+model_data/*.h5
+model_data/*.pb
+*.pyc
+*/.pyc
+*/*/.pyc
+.idea/*
