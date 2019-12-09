@@ -5,3 +5,4 @@ model_data/*.pb
 */.pyc
 */*/.pyc
 .idea/*
+license_model
