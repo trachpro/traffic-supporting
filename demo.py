@@ -35,7 +35,7 @@ def main(yolo):
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
     tracker = Tracker(metric)
 
-    writeVideo_flag = True
+    writeVideo_flag = False
 
     video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/IMG_0048.MOV')
 
@@ -57,18 +57,17 @@ def main(yolo):
 
         # image = Image.fromarray(frame)
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
-        boxs = yolo.detect_image(image)
+        boxs, classes = yolo.detect_image(image)
         # print("box_num",len(boxs))
         features = encoder(frame, boxs)
 
         # score to 1.0 here).
         detections = [Detection(bbox, 1.0, feature) for bbox, feature in zip(boxs, features)]
-
         # Run non-maxima suppression.
         boxes = np.array([d.tlwh for d in detections])
         scores = np.array([d.confidence for d in detections])
         indices = preprocessing.non_max_suppression(boxes, nms_max_overlap, scores)
-        detections = [detections[i] for i in indices]
+        detections = [detections[i] for i in indices if classes[i] == 3]
 
         # Call the tracker
         tracker.predict()

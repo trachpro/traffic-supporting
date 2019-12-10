@@ -95,6 +95,7 @@ class YOLO(object):
                 K.learning_phase(): 0
             })
         return_boxs = []
+        classes = []
         for i, c in reversed(list(enumerate(out_classes))):
             predicted_class = self.class_names[c]
             # if predicted_class != 'person' :
@@ -112,8 +113,9 @@ class YOLO(object):
                 h = h + y
                 y = 0 
             return_boxs.append([x,y,w,h])
+            classes.append(c)
 
-        return return_boxs
+        return return_boxs, classes
 
     def close_session(self):
         self.sess.close()
