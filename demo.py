@@ -18,11 +18,12 @@ from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 from tools import generate_detections as gdet
 from deep_sort.detection import Detection as ddet
+from license_model import LicenseNumberDetector
 
 warnings.filterwarnings('ignore')
 
 
-def main(yolo):
+def main(yolo, license_number_detector):
     # Definition of the parameters
     max_cosine_distance = 0.3
     nn_budget = None
@@ -37,7 +38,7 @@ def main(yolo):
 
     writeVideo_flag = False
 
-    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/IMG_0048.MOV')
+    video_capture = cv2.VideoCapture('/home/tupm/Downloads/VID_20191129_125710.mp4')
 
     if writeVideo_flag:
         # Define the codec and create VideoWriter object
@@ -58,6 +59,14 @@ def main(yolo):
         # image = Image.fromarray(frame)
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
         boxs, classes = yolo.detect_image(image)
+        license_boxs = [box for i, box in enumerate(boxs) if classes[i] == 0]
+        license_traffic_light = [box for i, box in enumerate(boxs) if classes[i] == 1]
+        boxs = [box for i, box in enumerate(boxs) if classes[i] == 1 and classes[i] != 0]
+
+        for box in license_boxs:
+            x, y, w, h = box
+            thresh = frame[y:y+h, x: x+w, :]
+            print(license_number_detector.detect_image(Image.fromarray(thresh)))
         # print("box_num",len(boxs))
         features = encoder(frame, boxs)
 
@@ -67,7 +76,7 @@ def main(yolo):
         boxes = np.array([d.tlwh for d in detections])
         scores = np.array([d.confidence for d in detections])
         indices = preprocessing.non_max_suppression(boxes, nms_max_overlap, scores)
-        detections = [detections[i] for i in indices if classes[i] == 3]
+        detections = [detections[i] for i in indices]
 
         # Call the tracker
         tracker.predict()
@@ -112,4 +121,4 @@ def main(yolo):
 
 
 if __name__ == '__main__':
-    main(YOLO())
+    main(YOLO(), LicenseNumberDetector())

@@ -19,7 +19,7 @@ import os
 from keras.utils import multi_gpu_model
 
 
-class YOLO(object):
+class LicenseNumberDetector(object):
     _defaults = {
         "model_path": 'license_model/model.h5',
         "anchors_path": 'license_model/tiny_yolo_anchors.txt',
@@ -38,6 +38,7 @@ class YOLO(object):
             return "Unrecognized attribute name '" + n + "'"
 
     def __init__(self, **kwargs):
+        self.input_image_shape = K.placeholder(shape=(2,))
         self.__dict__.update(self._defaults)  # set up default values
         self.__dict__.update(kwargs)  # and update with user overrides
         self.class_names = self._get_class()
@@ -66,14 +67,11 @@ class YOLO(object):
         # Load model, or construct model and load weights.
         num_anchors = len(self.anchors)
         num_classes = len(self.class_names)
-        is_tiny_version = num_anchors == 12  # default setting
-        try:
-            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 4, num_classes)
-            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
-        except:
-            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
-                if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
-            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+        is_tiny_version = num_anchors == 12
+        print(num_anchors, is_tiny_version)
+
+        self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 4, num_classes)
+        self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -89,15 +87,14 @@ class YOLO(object):
         np.random.seed(None)  # Reset seed to default.
 
         # Generate output tensor targets for filtered bounding boxes.
-        self.input_image_shape = K.placeholder(shape=(2,))
-        if self.gpu_num >= 2:
-            self.yolo_model = multi_gpu_model(self.yolo_model, gpus=self.gpu_num)
+        # if self.gpu_num >= 2:
+        #     self.yolo_model = multi_gpu_model(self.yolo_model, gpus=self.gpu_num)
         boxes, scores, classes = yolo_eval(self.yolo_model.output, self.anchors,
                                            len(self.class_names), self.input_image_shape,
                                            score_threshold=self.score, iou_threshold=self.iou)
         return boxes, scores, classes
 
-    def detect_image(self, image, image_path='/home/tupm/projects/projects/keras-yolo3/162558'):
+    def detect_image(self, image):
 
         if self.model_image_size != (None, None):
             assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
@@ -122,57 +119,28 @@ class YOLO(object):
 
         # print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
-        font = ImageFont.truetype(font='font/FiraMono-Medium.otf',
-                                  size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
-        thickness = (image.size[0] + image.size[1]) // 300
-
-        if image_path:
-            anno_f = open(image_path.replace('.jpg', '.txt'), 'w+')
-
+        return_boxs = []
+        classes = []
         for i, c in reversed(list(enumerate(out_classes))):
             predicted_class = self.class_names[c]
+            # if predicted_class != 'person' :
+            #     continue
             box = out_boxes[i]
-            score = out_scores[i]
+            # score = out_scores[i]
+            x = int(box[1])
+            y = int(box[0])
+            w = int(box[3] - box[1])
+            h = int(box[2] - box[0])
+            if x < 0:
+                w = w + x
+                x = 0
+            if y < 0:
+                h = h + y
+                y = 0
+            return_boxs.append([x, y, w, h])
+            classes.append(c)
 
-            label = '{} {:.2f}'.format(predicted_class, score)
-            draw = ImageDraw.Draw(image)
-            label_size = draw.textsize(label, font)
-
-            top, left, bottom, right = box
-            top = max(0, np.floor(top + 0.5).astype('int32'))
-            left = max(0, np.floor(left + 0.5).astype('int32'))
-            bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
-            right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-
-            if top - label_size[1] >= 0:
-                text_origin = np.array([left, top - label_size[1]])
-            else:
-                text_origin = np.array([left, top + 1])
-
-            draw = ImageDraw.Draw(image)
-            for i in range(thickness):
-                draw.rectangle(
-                    [left + i, top + i, right - i, bottom - i],
-                    outline=self.colors[c])
-            draw.rectangle(
-                [tuple(text_origin), tuple(text_origin + label_size)],
-                fill=self.colors[c])
-            draw.text(text_origin, label, fill=(0, 0, 0), font=font)
-            del draw
-
-            # save annotation
-
-            if image_path:
-                class_id = c
-                cy = (top + bottom) / (2 * image.height)
-                cx = (left + right) / (2 * image.width)
-                width = (right - left) / image.width
-                height = (bottom - top) / image.height
-                anno_f.write('{} {} {} {} {}\n'.format(str(class_id), str(cx), str(cy), str(width), str(height)))
-
-        if image_path:
-            anno_f.close()
-        return image
+        return return_boxs, classes
 
     def close_session(self):
         self.sess.close()
