@@ -38,7 +38,7 @@ def main(yolo, license_number_detector):
 
     writeVideo_flag = False
 
-    video_capture = cv2.VideoCapture('/home/tupm/Downloads/VID_20191129_125710.mp4')
+    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/IMG_0050.MOV')
 
     if writeVideo_flag:
         # Define the codec and create VideoWriter object
@@ -53,6 +53,7 @@ def main(yolo, license_number_detector):
     while True:
         ret, frame = video_capture.read()  # frame shape 640*480*3
         if ret != True:
+            print('break-----------------------')
             break
         t1 = time.time()
 
@@ -61,12 +62,11 @@ def main(yolo, license_number_detector):
         boxs, classes = yolo.detect_image(image)
         license_boxs = [box for i, box in enumerate(boxs) if classes[i] == 0]
         license_traffic_light = [box for i, box in enumerate(boxs) if classes[i] == 1]
-        boxs = [box for i, box in enumerate(boxs) if classes[i] == 1 and classes[i] != 0]
+        boxs = [box for i, box in enumerate(boxs) if classes[i] != 1 and classes[i] != 0]
 
-        for box in license_boxs:
-            x, y, w, h = box
-            thresh = frame[y:y+h, x: x+w, :]
-            print(license_number_detector.detect_image(Image.fromarray(thresh)))
+        license_images = [Image.fromarray(frame[y:y+h, x: x+w, :]) for x, y, w, h in license_boxs]
+        if len(license_images) != 0:
+            print(license_number_detector.detect_image(license_images))
         # print("box_num",len(boxs))
         features = encoder(frame, boxs)
 
