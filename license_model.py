@@ -4,19 +4,23 @@ Class definition of YOLO_v3 style detection model on image and video
 """
 
 import colorsys
-import os
-from timeit import default_timer as timer
 
 import numpy as np
 from keras import backend as K
 from keras.models import load_model
 from keras.layers import Input
-from PIL import Image, ImageFont, ImageDraw
 
 from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body
 from yolo3.utils import letterbox_image
 import os
-from keras.utils import multi_gpu_model
+import functools
+
+
+def compare(item1, item2):
+    if item1[1] - item1[3]/2 <= item2[1] <= item1[1] + item1[3]/2:
+        return item1[0] - item2[0]
+    else:
+        return -1 if item1[1] < item2[1] else 1
 
 
 class LicenseNumberDetector(object):
@@ -24,8 +28,8 @@ class LicenseNumberDetector(object):
         "model_path": 'license_model/model.h5',
         "anchors_path": 'license_model/tiny_yolo_anchors.txt',
         "classes_path": 'license_model/classes.txt',
-        "score": 0.3,
-        "iou": 0.45,
+        "score": 0.5,
+        "iou": 0.05,
         "model_image_size": (256, 256),
         "gpu_num": 1,
     }
@@ -94,37 +98,30 @@ class LicenseNumberDetector(object):
                                            score_threshold=self.score, iou_threshold=self.iou)
         return boxes, scores, classes
 
-    def detect_image(self, images):
-        images_data = []
-        for image in images:
-            if self.model_image_size != (None, None):
-                assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
-                assert self.model_image_size[1] % 32 == 0, 'Multiples of 32 required'
-                boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
-            else:
-                new_image_size = (image.width - (image.width % 32),
-                                  image.height - (image.height % 32))
-                boxed_image = letterbox_image(image, new_image_size)
+    def detect_image(self, image):
+        if self.model_image_size != (None, None):
+            assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
+            assert self.model_image_size[1] % 32 == 0, 'Multiples of 32 required'
+            boxed_image = letterbox_image(image, tuple(reversed(self.model_image_size)))
+            image_data = np.array(boxed_image, dtype='float32')
+        else:
+            new_image_size = (image.width - (image.width % 32), image.height - (image.height % 32))
+            boxed_image = letterbox_image(image, new_image_size)
             image_data = np.array(boxed_image, dtype='float32')
 
-            image_data /= 255.
-            images_data.append(image_data)
-        # image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
+        image_data /= 255.
+        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
         out_boxes, out_scores, out_classes = self.sess.run(
             [self.boxes, self.scores, self.classes],
             feed_dict={
-                self.yolo_model.input: images_data,
+                self.yolo_model.input: image_data,
                 self.input_image_shape: [image.size[1], image.size[0]],
                 K.learning_phase(): 0
             })
 
-        # print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
-
         return_boxs = []
-        classes = []
-        print(out_classes, len(out_classes))
-        print(out_boxes, len(out_boxes))
+
         for i, c in reversed(list(enumerate(out_classes))):
             predicted_class = self.class_names[c]
 
@@ -140,10 +137,14 @@ class LicenseNumberDetector(object):
             if y < 0:
                 h = h + y
                 y = 0
-            return_boxs.append([x, y, w, h])
-            classes.append(c)
+            return_boxs.append([x, y, w, h, predicted_class, out_scores[i]])
 
-        return return_boxs, classes
+        return_boxs = sorted(return_boxs, key=functools.cmp_to_key(compare))
+        classes = [box[4] for box in return_boxs]
+        # scores = [box[5] for box in return_boxs]
+        # centers = [(x+w/2, y+h/2) for x, y, w, h, l, s in return_boxs]
+        # print(''.join(classes))
+        return return_boxs, ''.join(classes)
 
     def close_session(self):
         self.sess.close()

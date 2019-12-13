@@ -28,6 +28,8 @@ def main(yolo, license_number_detector):
     max_cosine_distance = 0.3
     nn_budget = None
     nms_max_overlap = 1.0
+    color = (0, 255, 0)
+    color_id = 0
 
     # deep_sort
     model_filename = 'model_data/mars-small128.pb'
@@ -38,7 +40,7 @@ def main(yolo, license_number_detector):
 
     writeVideo_flag = True
 
-    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/Video_Traffic.mov')
+    video_capture = cv2.VideoCapture('/home/tupm/Videos/Video_Traffic.mov')
 
     ret, frame = video_capture.read()
     cv2.namedWindow("display")
@@ -78,18 +80,24 @@ def main(yolo, license_number_detector):
             print('break-----------------------')
             break
         t1 = time.time()
-        cv2.line(frame, pt1, pt2, (0, 255, 0), 3)
+
         # image = Image.fromarray(frame)
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
         boxs, classes = yolo.detect_image(image)
-        license_boxs = [box for i, box in enumerate(boxs) if classes[i] == 0]
+        license_boxs = [box for i, box in enumerate(boxs) if classes[i] == 0 and box[2] > 20 and box[3]> 20]
         license_traffic_light = [box for i, box in enumerate(boxs) if classes[i] == 1]
-        boxs = [box for i, box in enumerate(boxs) if classes[i] != 1 and classes[i] != 0]
+        boxs = [box for i, box in enumerate(boxs) if classes[i] != 1 and classes[i] != 0 and box[1] + box[3] > pt1[1] - 100]
 
+        if len(license_traffic_light) != 0:
+            traffic_light_images = [frame[y:y + h, x: x + w, :] for x, y, w, h in license_traffic_light]
+            trafice_colors = [[np.count_nonzero(a[:, :, 1] == 255), np.count_nonzero(a[:, :, 2] == 255)] for a in
+                              traffic_light_images]
+            max_colors = np.amax(trafice_colors, axis=0)
+            color_id = np.argmax(max_colors)
+            color = (0, 255, 0) if color_id == 0 else (0, 0, 255)
+        else:
+            print("---------------------------------no traffic light")
         license_images = [Image.fromarray(frame[y:y + h, x: x + w, :]) for x, y, w, h in license_boxs]
-        # if len(license_images) != 0:
-        #     print(license_number_detector.detect_image(license_images))
-        # print("box_num",len(boxs))
         features = encoder(frame, boxs)
 
         # score to 1.0 here).
@@ -103,18 +111,28 @@ def main(yolo, license_number_detector):
         # Call the tracker
         tracker.predict()
         tracker.update(detections)
+        cv2.line(frame, pt1, pt2, color, 3)
 
         for track in tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             bbox = track.to_tlbr()
-            color = (0, 255, 0) if bbox[3] > pt1[1] else (0, 0, 255)
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
-            cv2.putText(frame, str(track.track_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, color, 2)
+            tt, tl, tb, tr = bbox[:4]
+            for i, license_box in enumerate(license_boxs):
+                x, y, w, h = license_box[:4]
+                if tt + (tb-tt)/2 < y+h < tb and tl < x+w < tr:
+                    _, label = license_number_detector.detect_image(license_images[i])
+                    print(label)
+                    if len(label) > len(str(track.plate_id)):
+                        track.plate_id = label
+            draw_color = (0, 255, 0) if bbox[3] > pt1[1] else color
+            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), draw_color, 2)
+            cv2.putText(frame, str(track.plate_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, draw_color, 2)
 
-        # for det in detections:
-        #     bbox = det.to_tlbr()
-        #     cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 2)
+        for det in license_traffic_light:
+            x, y, w, h = det
+            cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
+            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
         cv2.imshow('display', frame)
 
