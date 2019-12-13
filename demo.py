@@ -36,10 +36,32 @@ def main(yolo, license_number_detector):
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
     tracker = Tracker(metric)
 
-    writeVideo_flag = False
+    writeVideo_flag = True
 
-    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/IMG_0050.MOV')
+    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/Video_Traffic.mov')
 
+    ret, frame = video_capture.read()
+    cv2.namedWindow("display")
+    def draw_rectangle(event, x, y, flags, param):
+
+        image = frame.copy()
+        global pt1, pt2, topLeft_clicked, bottomRight_clicked
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            # get coordinates of left corner
+            if not topLeft_clicked:
+                pt1 = (x, y)
+                topLeft_clicked = True
+            # get coordinates of right corner
+            elif not bottomRight_clicked:
+                pt2 = (x, y)
+                cv2.line(image, pt1, pt2, (0, 255, 0), 3)
+                cv2.imshow('display', image)
+                bottomRight_clicked = True
+
+    cv2.imshow('display', frame)
+    cv2.setMouseCallback('display', draw_rectangle)
+    cv2.waitKey(0)
     if writeVideo_flag:
         # Define the codec and create VideoWriter object
         w = int(video_capture.get(3))
@@ -56,7 +78,7 @@ def main(yolo, license_number_detector):
             print('break-----------------------')
             break
         t1 = time.time()
-
+        cv2.line(frame, pt1, pt2, (0, 255, 0), 3)
         # image = Image.fromarray(frame)
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
         boxs, classes = yolo.detect_image(image)
@@ -64,9 +86,9 @@ def main(yolo, license_number_detector):
         license_traffic_light = [box for i, box in enumerate(boxs) if classes[i] == 1]
         boxs = [box for i, box in enumerate(boxs) if classes[i] != 1 and classes[i] != 0]
 
-        license_images = [Image.fromarray(frame[y:y+h, x: x+w, :]) for x, y, w, h in license_boxs]
-        if len(license_images) != 0:
-            print(license_number_detector.detect_image(license_images))
+        license_images = [Image.fromarray(frame[y:y + h, x: x + w, :]) for x, y, w, h in license_boxs]
+        # if len(license_images) != 0:
+        #     print(license_number_detector.detect_image(license_images))
         # print("box_num",len(boxs))
         features = encoder(frame, boxs)
 
@@ -86,14 +108,15 @@ def main(yolo, license_number_detector):
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             bbox = track.to_tlbr()
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 255, 255), 2)
-            cv2.putText(frame, str(track.track_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, (0, 255, 0), 2)
+            color = (0, 255, 0) if bbox[3] > pt1[1] else (0, 0, 255)
+            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
+            cv2.putText(frame, str(track.track_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, color, 2)
 
-        for det in detections:
-            bbox = det.to_tlbr()
-            cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 2)
+        # for det in detections:
+        #     bbox = det.to_tlbr()
+        #     cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), (255, 0, 0), 2)
 
-        cv2.imshow('', frame)
+        cv2.imshow('display', frame)
 
         if writeVideo_flag:
             # save a frame
@@ -121,4 +144,8 @@ def main(yolo, license_number_detector):
 
 
 if __name__ == '__main__':
+    pt1 = (0, 0)
+    pt2 = (0, 0)
+    topLeft_clicked = False
+    bottomRight_clicked = False
     main(YOLO(), LicenseNumberDetector())
