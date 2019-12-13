@@ -125,11 +125,17 @@ def main(yolo, license_number_detector):
                     print(label)
                     if len(label) > len(str(track.plate_id)):
                         track.plate_id = label
+                    cv2.line(frame, (int(tt), int(tl)), (x, y), color, 2)
             draw_color = (0, 255, 0) if bbox[3] > pt1[1] else color
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), draw_color, 2)
             cv2.putText(frame, str(track.plate_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, draw_color, 2)
 
         for det in license_traffic_light:
+            x, y, w, h = det
+            cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+        for det in license_boxs:
             x, y, w, h = det
             cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
             cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
