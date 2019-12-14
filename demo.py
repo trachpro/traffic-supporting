@@ -40,10 +40,10 @@ def main(yolo, license_number_detector):
 
     writeVideo_flag = True
 
-    video_capture = cv2.VideoCapture('/home/tupm/Videos/Video_Traffic.mov')
+    video_capture = cv2.VideoCapture('/home/tupm/Videos/20191214_104031.mp4')
 
     ret, frame = video_capture.read()
-    cv2.namedWindow("display")
+    cv2.namedWindow("display", cv2.WINDOW_NORMAL)
     def draw_rectangle(event, x, y, flags, param):
 
         image = frame.copy()
@@ -69,7 +69,7 @@ def main(yolo, license_number_detector):
         w = int(video_capture.get(3))
         h = int(video_capture.get(4))
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        out = cv2.VideoWriter('VIDEO_50.avi', fourcc, 15, (w, h))
+        out = cv2.VideoWriter('20191214_104031.avi', fourcc, 15, (w, h))
         list_file = open('detection.txt', 'w')
         frame_index = -1
 
@@ -82,6 +82,7 @@ def main(yolo, license_number_detector):
         t1 = time.time()
 
         # image = Image.fromarray(frame)
+        # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         image = Image.fromarray(frame[..., ::-1])  # bgr to rgb
         boxs, classes = yolo.detect_image(image)
         license_boxs = [box for i, box in enumerate(boxs) if classes[i] == 0 and box[2] > 20 and box[3]> 20]
@@ -92,7 +93,7 @@ def main(yolo, license_number_detector):
             traffic_light_images = [frame[y:y + h, x: x + w, :] for x, y, w, h in license_traffic_light]
             trafice_colors = [[np.count_nonzero(a[:, :, 1] == 255), np.count_nonzero(a[:, :, 2] == 255)] for a in
                               traffic_light_images]
-            max_colors = np.amax(trafice_colors, axis=0)
+            max_colors = np.sum(trafice_colors, axis=0)
             color_id = np.argmax(max_colors)
             color = (0, 255, 0) if color_id == 0 else (0, 0, 255)
         else:
@@ -117,28 +118,26 @@ def main(yolo, license_number_detector):
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             bbox = track.to_tlbr()
-            tt, tl, tb, tr = bbox[:4]
+            tl, tt, tr, tb = bbox[:4]
             for i, license_box in enumerate(license_boxs):
                 x, y, w, h = license_box[:4]
                 if tt + (tb-tt)/2 < y+h < tb and tl < x+w < tr:
                     _, label = license_number_detector.detect_image(license_images[i])
-                    print(label)
                     if len(label) > len(str(track.plate_id)):
                         track.plate_id = label
-                    cv2.line(frame, (int(tt), int(tl)), (x, y), color, 2)
             draw_color = (0, 255, 0) if bbox[3] > pt1[1] else color
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), draw_color, 2)
             cv2.putText(frame, str(track.plate_id), (int(bbox[0]), int(bbox[1])), 0, 5e-3 * 200, draw_color, 2)
 
         for det in license_traffic_light:
             x, y, w, h = det
-            cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
+            cv2.putText(frame, 'red' if color_id == 1 else 'green', (x, y), 0, 5e-3 * 200, color, 2)
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-        for det in license_boxs:
-            x, y, w, h = det
-            cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        # for det in license_boxs:
+        #     x, y, w, h = det
+        #     cv2.putText(frame, str(color_id), (x, y), 0, 5e-3 * 200, color, 2)
+        #     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
 
         cv2.imshow('display', frame)
 
