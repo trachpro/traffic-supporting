@@ -72,6 +72,7 @@ class Track:
         self.age = 1
         self.time_since_update = 0
         self.plate_id = str(track_id)
+        self.average_score = 0
 
         self.state = TrackState.Tentative
         self.features = []

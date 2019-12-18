@@ -40,7 +40,7 @@ def main(yolo, license_number_detector):
 
     writeVideo_flag = True
 
-    video_capture = cv2.VideoCapture('/home/tupm/Videos/20191214_104031.mp4')
+    video_capture = cv2.VideoCapture('/home/tupm/Downloads/Videos/IMG_0050.MOV')
 
     ret, frame = video_capture.read()
     cv2.namedWindow("display", cv2.WINDOW_NORMAL)
@@ -69,7 +69,7 @@ def main(yolo, license_number_detector):
         w = int(video_capture.get(3))
         h = int(video_capture.get(4))
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        out = cv2.VideoWriter('20191214_104031.avi', fourcc, 15, (w, h))
+        out = cv2.VideoWriter('Video_Traffic_full.avi', fourcc, 15, (w, h))
         list_file = open('detection.txt', 'w')
         frame_index = -1
 
@@ -122,8 +122,9 @@ def main(yolo, license_number_detector):
             for i, license_box in enumerate(license_boxs):
                 x, y, w, h = license_box[:4]
                 if tt + (tb-tt)/2 < y+h < tb and tl < x+w < tr:
-                    _, label = license_number_detector.detect_image(license_images[i])
+                    _, label, average_score = license_number_detector.detect_image(license_images[i])
                     if len(label) > len(str(track.plate_id)):
+                        # track.average_score = average_score
                         track.plate_id = label
             draw_color = (0, 255, 0) if bbox[3] > pt1[1] else color
             cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), draw_color, 2)

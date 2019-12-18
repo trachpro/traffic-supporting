@@ -5,7 +5,7 @@ import os
 
 detector = LicenseNumberDetector()
 
-path = '/home/tupm/Downloads/license_huy_label/license_huy_label'
+path = '/home/tupm/projects/projects/license_plate_segmentation/license_test'
 img_paths = [os.path.join(path, e) for e in os.listdir(path) if '.jpg' in e]
 for img_path in img_paths:
     frame = cv2.imread(img_path)

@@ -25,7 +25,7 @@ def compare(item1, item2):
 
 class LicenseNumberDetector(object):
     _defaults = {
-        "model_path": 'license_model/model.h5',
+        "model_path": 'license_model/model2.h5',
         "anchors_path": 'license_model/tiny_yolo_anchors.txt',
         "classes_path": 'license_model/classes.txt',
         "score": 0.5,
@@ -71,10 +71,10 @@ class LicenseNumberDetector(object):
         # Load model, or construct model and load weights.
         num_anchors = len(self.anchors)
         num_classes = len(self.class_names)
-        is_tiny_version = num_anchors == 12
-        print(num_anchors, is_tiny_version)
+        # is_tiny_version = num_anchors == 12
+        # print(num_anchors, is_tiny_version)
 
-        self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 4, num_classes)
+        self.yolo_model = yolo_body(Input(shape=(None, None, 3)), num_anchors // 4, num_classes)
         self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
 
         print('{} model, anchors, and classes loaded.'.format(model_path))
@@ -141,10 +141,10 @@ class LicenseNumberDetector(object):
 
         return_boxs = sorted(return_boxs, key=functools.cmp_to_key(compare))
         classes = [box[4] for box in return_boxs]
-        # scores = [box[5] for box in return_boxs]
+        scores = [box[5] for box in return_boxs]
         # centers = [(x+w/2, y+h/2) for x, y, w, h, l, s in return_boxs]
         # print(''.join(classes))
-        return return_boxs, ''.join(classes)
+        return return_boxs, ''.join(classes), np.average(scores)
 
     def close_session(self):
         self.sess.close()
